@@ -1,12 +1,16 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView } from 'react-native';
+import ClickWheel from './components/ClickWheel';
+import ClickWheel2 from './components/ClickWheel2';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="auto" />
-    </View>
+      {/*<ClickWheel />*/}
+      <ClickWheel2 />
+
+    </SafeAreaView>
   );
 }
 
