@@ -1,66 +1,218 @@
-import { View, Text, StyleSheet, PanResponder, Animated, Dimensions } from "react-native";
-import { useRef, useState } from "react";
+import { View, StyleSheet, Text, PanResponder, Animated, Dimensions, TouchableOpacity, Button, TouchableHighlight, TouchableWithoutFeedback, Pressable } from "react-native";
+import { useState, useEffect } from "react";
+import * as Haptics from 'expo-haptics';
+import NativeIconicIcon from "./NativeIconicIcon";
+import { Audio } from 'expo-av';
+import { Sound } from "expo-av/build/Audio";
+import { LinearGradient } from 'expo-linear-gradient';
+import { Gyroscope } from "expo-sensors";
+import WheelButton from "./WheelButton";
 
 const screenWidth = Math.round(Dimensions.get("window").width);
 const screenHeight = Math.round(Dimensions.get("window").height);
-const wheelRadius = screenWidth * 0.8 / 2;
-const wheelCenterRadius = wheelRadius * 0.6;
-console.log(screenWidth);
+const wheelRadius = screenWidth * 0.7 / 2;
+const wheelCenterRadius = wheelRadius * 0.7;
+
+const wheelCenterYOffset = 150;
+
+const convertXYToAngle = (x: number, y: number, center: { x: number, y: number }) => {
+  //console.log(`x: ${x.toFixed(0)}, y: ${y.toFixed(0)}, center: ${center.x.toFixed(0)}, ${center.y.toFixed(0)}`);
+  const angle = Math.atan2(y - center.y, x - center.x);
+  return angle * (180 / Math.PI);
+};
+
 
 export default function ClickWheel() {
-  const position = useRef(new Animated.ValueXY()).current;
-  const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
+  const [currAngle, setCurrAngle] = useState(0);
+  const [initialAngle, setInitialAngle] = useState(0);
+  const [currRangeIndex, setCurrRangeIndex] = useState(0);
+  const [lastRangeIndex, setLastRangeIndex] = useState(0);
+
+  const [mySound, setMySound] = useState<Sound | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  /*
+  const [gyroscopeData, setGyroscopeData] = useState({ x: 0, y: 0, z: 0 });
+  const [gyroSubscription, setGyroSubscription] = useState<any>(null);
+
+  useEffect(() => {
+    setGyroSubscription(
+      Gyroscope.addListener(gyroscopeData => {
+        setGyroscopeData(gyroscopeData);
+      })
+    );
+    return () => {
+      gyroSubscription && gyroSubscription.remove();
+      setGyroSubscription(null);
+    };
+  }, []);
+  */
+
+  const angleDiff = currAngle - initialAngle;
+
+  if (Math.floor(angleDiff / 10) !== currRangeIndex) {
+    setCurrRangeIndex(Math.floor(angleDiff / 10));
+    Haptics.selectionAsync();
+  }
+
+  const playSound = async () => {
+    if (mySound) {
+      await mySound.playAsync();
+    } else {
+      console.log('Loading Sound');
+      const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/杨宗纬-最爱.mp3'));
+      setMySound(sound);
+      await sound.playAsync();
+    }
+    console.log('Playing Sound');
+    setPlaying(true);
+
+  }
+
+  const pause = async () => {
+    if (mySound) {
+      await mySound.pauseAsync();
+      setPlaying(false);
+    }
+  }
+
+  const tryChangeVolume = async (increment: boolean) => {
+    if (mySound) {
+      const status = await mySound.getStatusAsync();
+      if (status.isLoaded) {
+        const newVolume = increment ? status.volume + 1 / 36 : status.volume - 1 / 36;
+        if (newVolume >= 0 && newVolume <= 1) {
+          console.log('Changing Volume to: ', newVolume);
+          await mySound.setVolumeAsync(newVolume);
+        } else {
+          console.log('Volume out of range');
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    return mySound ? () => {
+      console.log('Unloading Sound');
+      mySound.unloadAsync();
+    } : undefined;
+  }, [mySound]);
+
+  useEffect(() => {
+    if (mySound) {
+      //console.log(currRangeIndex - lastRangeIndex);
+      if (currRangeIndex !== lastRangeIndex && currRangeIndex !== 0) {
+        if (Math.abs(currRangeIndex - lastRangeIndex) === 1) {
+          //console.log('try changing Volume: ', currRangeIndex, lastRangeIndex);
+          tryChangeVolume(currRangeIndex > lastRangeIndex);
+        }
+        setLastRangeIndex(currRangeIndex);
+      }
+    }
+  }, [currRangeIndex]);
+
+
 
   return (
     <View style={styles.container}>
-      <View style={styles.wheel}>
-      </View>
-      <View style={styles.wheelCenter}>
-      </View>
+
       <Animated.View
-          style={[styles.touch, {
-            transform: position.getTranslateTransform()
-          }]}
-          {...PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onPanResponderMove: (e, gesture) => {
-              position.setValue({ x: lastPosition.x + gesture.dx, y: lastPosition.y + gesture.dy });
-              
-            },
-            onPanResponderRelease: (e, gesture) => {
-              setLastPosition({ x: lastPosition.x + gesture.dx, y: lastPosition.y + gesture.dy });
-            }
-          }).panHandlers}
+        style={styles.wheel}
+        {...PanResponder.create({
+          onStartShouldSetPanResponder: () => true,
+          onPanResponderStart: (e, gesture) => {
+            setInitialAngle(convertXYToAngle(gesture.x0, gesture.y0, { x: screenWidth / 2, y: screenHeight / 2 + wheelCenterYOffset }));
+            setCurrAngle(convertXYToAngle(gesture.x0, gesture.y0, { x: screenWidth / 2, y: screenHeight / 2 + wheelCenterYOffset }));
+          },
+          onPanResponderMove: (e, gesture) => {
+            setCurrAngle(convertXYToAngle(gesture.moveX, gesture.moveY, { x: screenWidth / 2, y: screenHeight / 2 + wheelCenterYOffset }));
+          },
+          onPanResponderRelease: (e, gesture) => {
+            setCurrAngle(0);
+            setInitialAngle(0);
+          }
+        }).panHandlers}
+      >
+        {/*
+        <View style={styles.buttonBottom}>
+          <WheelButton name={'pause-outline'} onPressIn={() => {
+            if (playing) pause();
+            else playSound();
+          }} />
+        </View>
+        <View style={styles.buttonRight}>
+          <WheelButton name={'play-skip-forward'} />
+        </View>
+        <View style={styles.buttonLeft}>
+          <WheelButton name={'play-skip-back'} />
+        </View>
+        <View style={styles.buttonTop}>
+          <WheelButton name={'menu'} />
+        </View>
+        */}
+      </Animated.View>
+      <TouchableOpacity
+        onPressIn={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+        onPressOut={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          if (playing) pause();
+          else playSound();
+        }}
+      >
+        <LinearGradient
+          colors={["#aaa", "#eee"]}
+          style={styles.wheelCenter}
         />
-    </View>
+      </TouchableOpacity>
+    </View >
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
+    top: wheelCenterYOffset,
+  },
+  text: {
+    position: 'absolute',
+    top: -200,
+    fontSize: 20,
+    color: '#000',
   },
   wheel: {
     position: 'absolute',
     width: wheelRadius * 2,
     height: wheelRadius * 2,
     borderRadius: wheelRadius,
-    backgroundColor: '#ccc',
+    backgroundColor: '#fff',
+    marginTop: wheelCenterYOffset
   },
   wheelCenter: {
-    position: 'absolute',
-    width: wheelCenterRadius * 2,
-    height: wheelCenterRadius * 2,
+    width: wheelCenterRadius,
+    height: wheelCenterRadius,
     borderRadius: wheelCenterRadius,
-    backgroundColor: '#fff',
+    paddingLeft: 10,
   },
-  touch: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#000',
-    zIndex: 1,
+  buttonTop: {
+    position: 'absolute',
+    top: 30,
+    left: wheelCenterRadius + 25,
   },
+  buttonBottom: {
+    position: 'absolute',
+    bottom: 30,
+    left: wheelCenterRadius + 25,
+  },
+  buttonLeft: {
+    position: 'absolute',
+    top: wheelCenterRadius + 25,
+    left: 30,
+  },
+  buttonRight: {
+    position: 'absolute',
+    top: wheelCenterRadius + 25,
+    right: 30,
+  },
+
 });

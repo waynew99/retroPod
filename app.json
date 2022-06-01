@@ -3,6 +3,7 @@
     "name": "retroPod",
     "slug": "retroPod",
     "version": "1.0.0",
+    "scheme": "retropod",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
